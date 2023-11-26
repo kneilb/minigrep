@@ -25,3 +25,51 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
     println!("With text:\n{}", contents);
     Ok(())
 }
+
+pub fn search<'a>(query: &str, contents: &'a str) -> Vec<&'a str> {
+    let mut results = vec![];
+
+    for line in contents.lines() {
+        if line.contains(query) {
+            results.push(line);
+        }
+    }
+
+    results
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn config_valid() {
+        let args = vec!["app".to_string(), "search".to_string(), "file".to_string()];
+        let config = Config::new(&args);
+        assert!(config.is_ok());
+        let config = config.unwrap();
+        assert_eq!(config.query, "search");
+        assert_eq!(config.filename, "file");
+    }
+
+    #[test]
+    fn config_too_short() {
+        let args = vec!["app".to_string(), "search".to_string()];
+        let config = Config::new(&args);
+        assert!(!config.is_ok());
+    }
+
+    #[test]
+    fn one_result() {
+        let query = "duct";
+        let contents = "\
+Rust:
+safe, fast, productive.
+Pick three.";
+
+        assert_eq!(
+            vec!["safe, fast, productive."],
+            search(query, contents)
+        );
+    }
+}
