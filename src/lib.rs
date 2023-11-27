@@ -10,17 +10,27 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn new(args: &[String]) -> Result<Config, &'static str> {
-        if args.len() < 3 {
-            return Err("not enough arguments");
-        }
-        let query = args[1].clone();
-        let filename = args[2].clone();
+    pub fn new<T>(mut args: T) -> Result<Config, &'static str>
+    where
+        T: Iterator<Item = String>,
+    {
+        args.next(); // Skip app name
+
+        let Some(query) = args.next() else {
+            return Err("missing query");
+        };
+        let Some(filename) = args.next() else {
+            return Err("missing filename");
+        };
 
         // Case sensitive if the env var isn't defined.
         let case_sensitive = env::var("CASE_INSENSITIVE").is_err();
 
-        Ok(Config { query, filename, case_sensitive })
+        Ok(Config {
+            query,
+            filename,
+            case_sensitive,
+        })
     }
 }
 
@@ -41,28 +51,17 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
 }
 
 pub fn search<'a>(query: &str, contents: &'a str) -> Vec<&'a str> {
-    let mut results = vec![];
-
-    for line in contents.lines() {
-        if line.contains(query) {
-            results.push(line);
-        }
-    }
-
-    results
+    contents.lines()
+        .filter(|l| l.contains(query))
+        .collect()
 }
 
 pub fn search_case_insensitive<'a>(query: &str, contents: &'a str) -> Vec<&'a str> {
-    let mut results = vec![];
-    let lowercase_query = query.to_lowercase();
+    let query = query.to_lowercase();
 
-    for line in contents.lines() {
-        if line.to_lowercase().contains(&lowercase_query) {
-            results.push(line);
-        }
-    }
-
-    results
+    contents.lines()
+        .filter(|s| s.to_lowercase().contains(&query))
+        .collect()
 }
 
 #[cfg(test)]
@@ -71,8 +70,8 @@ mod tests {
 
     #[test]
     fn config_valid() {
-        let args = vec!["app".to_string(), "search".to_string(), "file".to_string()];
-        let config = Config::new(&args);
+        let args = ["app", "search", "file"].iter().map(|s| s.to_string());
+        let config = Config::new(args);
         assert!(config.is_ok());
         let config = config.unwrap();
         assert_eq!(config.query, "search");
@@ -80,10 +79,23 @@ mod tests {
     }
 
     #[test]
-    fn config_too_short() {
-        let args = vec!["app".to_string(), "search".to_string()];
-        let config = Config::new(&args);
-        assert!(!config.is_ok());
+    fn config_missing_filename() {
+        let args = ["app", "search"].iter().map(|s| s.to_string());
+        let config = Config::new(args);
+        let Err(e) = config else {
+            panic!();
+        };
+        assert_eq!(e, "missing filename");
+    }
+
+    #[test]
+    fn config_missing_query_and_filename() {
+        let args = ["app"].iter().map(|s| s.to_string());
+        let config = Config::new(args);
+        let Err(e) = config else {
+            panic!();
+        };
+        assert_eq!(e, "missing query");
     }
 
     #[test]
